@@ -45,8 +45,8 @@ export default function ClusterDetail({
     <aside className="detail">
       <div className="detail-header">
         <h2>{cluster.label}</h2>
-        <button className="close-button" onClick={onClose}>
-          close
+        <button className="close-button" onClick={onClose} title="Close">
+          &times;
         </button>
       </div>
 

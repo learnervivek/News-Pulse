@@ -26,7 +26,8 @@ router.get("/", (req, res) => {
       .json({ error: "Query parameter 'days' must be a number between 1 and 365" });
   }
 
-  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const cutoff = now - days * 24 * 60 * 60 * 1000;
 
   const clusters = db.getClusters();
 
@@ -55,12 +56,14 @@ router.get("/", (req, res) => {
     sources: db.getClusterSources(cluster.id),
   }));
 
-  // The full window the timeline axis should cover.
-  const allTimes = items.flatMap((item) => [item.start, item.end]).sort();
-
+  // The axis always covers the whole requested window (e.g. the full
+  // last 7 days), not just the span of the articles we happen to have.
+  // That way "Last 24 hours" and "Last 30 days" look visibly different
+  // even when every article was published today.
   res.json({
-    rangeStart: allTimes[0] || null,
-    rangeEnd: allTimes[allTimes.length - 1] || null,
+    rangeStart: new Date(cutoff).toISOString(),
+    rangeEnd: new Date(now).toISOString(),
+    days,
     count: items.length,
     items,
   });

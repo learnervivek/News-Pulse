@@ -87,15 +87,20 @@ export default function Timeline({
             </span>
           ))}
         </div>
+        <span className="row-count" />
       </div>
 
       <div className="timeline-rows">
         {sortedItems.map((cluster) => {
-          const left = positionPercent(cluster.start);
-          const right = positionPercent(cluster.end);
+          // Clamp to the axis: a cluster may have started before the
+          // window began, and we don't want its bar hanging off the edge.
+          const start = Math.max(positionPercent(cluster.start), 0);
+          const end = Math.min(positionPercent(cluster.end), 100);
           // Clusters with one article have start === end, which would be
-          // an invisible zero-width bar - so every bar gets a minimum.
-          const width = Math.max(right - left, 0.8);
+          // an invisible zero-width bar - so every bar gets a minimum,
+          // and is nudged left if that minimum would poke past the edge.
+          const width = Math.max(end - start, 1.2);
+          const left = Math.min(start, 100 - width);
           const isSelected = cluster.id === selectedClusterId;
 
           return (
@@ -124,8 +129,9 @@ export default function Timeline({
                   onClick={() => onSelectCluster(cluster.id)}
                   title={`${cluster.label} - ${cluster.articleCount} articles`}
                 />
-                <span className="row-count">{cluster.articleCount}</span>
               </div>
+
+              <span className="row-count">{cluster.articleCount}</span>
             </div>
           );
         })}

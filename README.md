@@ -163,7 +163,9 @@ to the biggest cluster) so the frontend can size bars without recalculating anyt
 **Why `/timeline` takes a `days` parameter:** feeds sometimes include an evergreen
 explainer published a year ago. A single one of those stretched the time axis so far that
 an entire day of real news was squashed into a sliver at the right edge. `days` (default
-7, validated 1–365) bounds the window. The UI exposes it as a 24h / 7d / 30d dropdown.
+7, validated 1–365) bounds the window, and the axis always spans that whole window
+(`rangeStart` = now − days, `rangeEnd` = now) rather than just the articles' own
+timestamps — so switching between 24h / 7d / 30d in the UI visibly rescales the chart.
 
 ---
 
