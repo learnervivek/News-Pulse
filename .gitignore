@@ -1,0 +1,21 @@
+# Environment files - never commit real secrets/config
+.env
+.env.local
+
+# The SQLite database is generated data, not source code
+*.db
+
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Next.js build output
+.next/
+out/
+
+# Editor / OS noise
+.DS_Store
+.vscode/

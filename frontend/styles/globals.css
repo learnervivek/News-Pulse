@@ -1,0 +1,364 @@
+/* globals.css - all the styling for the app lives here. */
+
+:root {
+  --background: #0e1320;
+  --panel: #161d2e;
+  --panel-light: #1d2639;
+  --border: #2a344b;
+  --text: #e7ecf7;
+  --muted: #94a3bd;
+  --accent: #4f8cff;
+  --accent-soft: #2e5fb5;
+  --danger: #ff6b6b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+/* --- Header ------------------------------------------------------- */
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+h1 {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: -0.5px;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.window-select {
+  background: var(--panel-light);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.refresh-button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.refresh-button:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.refresh-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* --- Status + filters --------------------------------------------- */
+
+.status-bar {
+  display: flex;
+  gap: 16px;
+  margin: 20px 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.error {
+  color: var(--danger);
+}
+
+.filter-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-box {
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.filter {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.filter-title {
+  color: var(--muted);
+}
+
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+/* --- Layout ------------------------------------------------------- */
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 20px;
+  margin-top: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.timeline-panel,
+.detail {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 8px 0;
+}
+
+/* --- Timeline ----------------------------------------------------- */
+
+.range-caption {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+}
+
+/* Every row is: [ topic name ][ track the bar sits in ] */
+.timeline-row {
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  gap: 12px;
+  align-items: center;
+  height: 30px;
+  border-radius: 6px;
+}
+
+.timeline-axis {
+  height: 24px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+.axis-track {
+  position: relative;
+  height: 100%;
+}
+
+.axis-label {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.axis-track .axis-label:first-child {
+  transform: none;
+}
+
+.axis-track .axis-label:last-child {
+  transform: translateX(-100%);
+}
+
+/* On narrow screens five timestamps collide, so show only three. */
+@media (max-width: 820px) {
+  .axis-label:nth-child(2),
+  .axis-label:nth-child(4) {
+    display: none;
+  }
+
+  .timeline-row {
+    grid-template-columns: 140px 1fr;
+  }
+}
+
+.timeline-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 620px;
+  overflow-y: auto;
+}
+
+.row-selected {
+  background: rgba(79, 140, 255, 0.12);
+}
+
+.row-label {
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.row-label-button {
+  background: none;
+  border: none;
+  padding: 0 0 0 8px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.row-label-button:hover {
+  color: var(--accent);
+}
+
+.row-track {
+  position: relative;
+  height: 100%;
+  /* Faint vertical guide lines that line up with the axis labels. */
+  background: repeating-linear-gradient(
+    to right,
+    var(--panel-light) 0 1px,
+    transparent 1px 25%
+  );
+  border-radius: 4px;
+}
+
+.bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 8px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-soft));
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.bar:hover {
+  filter: brightness(1.3);
+}
+
+.bar-selected {
+  outline: 2px solid #ffffff;
+  outline-offset: 1px;
+}
+
+.row-count {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* --- Cluster detail panel ------------------------------------------ */
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.detail-header h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.close-button {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.detail-meta {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 8px 0 16px;
+}
+
+.article-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 560px;
+  overflow-y: auto;
+}
+
+.article a {
+  color: var(--text);
+  text-decoration: none;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.article a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.article-meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
