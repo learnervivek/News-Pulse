@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: news-pulse-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && pip3 install -r ../scraper/requirements.txt
+    startCommand: node server.js
+    plan: starter
+    envVars:
+      - key: NODE_VERSION
+        value: 22.5.0
+      - key: DB_PATH
+        value: /var/data/news_pulse.db
+      - key: PYTHON_BIN
+        value: python3
+      - key: SCRAPER_DIR
+        value: ../scraper
+      - key: CORS_ORIGIN
+        fromService:
+          type: static_site
+          name: news-pulse-frontend
+          envVarKey: RENDER_EXTERNAL_URL
+    disk:
+      name: news-pulse-data
+      mountPath: /var/data
+      sizeGB: 1
+
+  - type: static_site
+    name: news-pulse-frontend
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: news-pulse-api
+          envVarKey: RENDER_EXTERNAL_URL
