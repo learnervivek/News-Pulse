@@ -1,265 +1,424 @@
-# News Pulse — Topic-Clustered News Timeline
+# News Pulse
 
-News Pulse pulls live articles from three public news RSS feeds, automatically groups
-articles that are about the same story into **topic clusters**, and plots those clusters
-on a **timeline** so you can see which topics were active during which time window.
+News Pulse is a topic-clustered news timeline. It collects articles from public RSS feeds, cleans and stores them in SQLite, groups related stories by shared keywords, and displays the resulting topics in a React timeline.
 
----
+The project is split into three services:
+
+- **Python scraper**: fetches RSS feeds, normalizes article data, stores articles, and creates topic clusters.
+- **Node.js API**: exposes the SQLite data through REST endpoints and can start the scraper in the background.
+- **React frontend**: displays the timeline, source filters, cluster details, and refresh controls.
+
+## Features
+
+- Topic timeline covering the last 24 hours, 7 days, or 30 days
+- Keyword-based clustering across BBC News, NPR, and Al Jazeera
+- Cluster bars sized by article count and positioned by publication time
+- Source filtering
+- Cluster detail panel with links to original articles
+- Manual data refresh through the Python scraper
+- Optional 60-second auto-refresh
+- SQLite storage with duplicate URL protection
+- Responsive React/Vite interface
 
 ## Architecture
 
+```text
+RSS feeds
+   |
+   v
+Python scraper ------> SQLite database <------ Node.js API <------ React/Vite frontend
+   |                         |
+   +-- clean articles        +-- articles
+   +-- group topics           +-- clusters
 ```
-  RSS feeds                Python scraper              SQLite              Node.js API           Next.js frontend
- ------------             -----------------          ----------          --------------        ------------------
-  BBC News     --\                                                          /clusters
-  NPR          ----->   fetch -> clean -> save  -->   news_pulse.db  -->    /timeline     -->   timeline chart
-  Al Jazeera   --/      -> group into clusters        (articles,            /ingest/*           cluster detail
-                                                       clusters)                                source filter
+
+The scraper and backend must use the same `news_pulse.db` file. The scraper writes articles and clusters; the backend reads them.
+
+## Project Structure
+
+```text
+.
+├── backend/
+│   ├── db.js                 SQLite access layer
+│   ├── package.json          Backend dependencies and scripts
+│   ├── server.js             Express application entrypoint
+│   └── routes/
+│       ├── clusters.js       Cluster endpoints
+│       ├── ingest.js         Background scraper jobs
+│       └── timeline.js       Timeline endpoint
+├── frontend/
+│   ├── components/           Timeline, filters, and detail components
+│   ├── lib/api.js            Frontend API client
+│   ├── src/App.jsx           Main React application
+│   ├── src/main.jsx          React/Vite entrypoint
+│   ├── styles/globals.css    Application styles
+│   ├── index.html            Vite HTML shell
+│   └── package.json          Frontend dependencies and scripts
+├── scraper/
+│   ├── config.py             Feeds and grouping configuration
+│   ├── db.py                 SQLite schema and write operations
+│   ├── fetch_feeds.py        RSS parsing and normalization
+│   ├── extract_article.py    Full article text extraction
+│   ├── group_topics.py       Keyword clustering
+│   ├── main.py               Scraper pipeline entrypoint
+│   └── requirements.txt      Python dependencies
+└── README.md
 ```
 
-| Folder      | Language          | What it does                                                        |
-| ----------- | ----------------- | ------------------------------------------------------------------- |
-| `/scraper`  | Python            | Reads the RSS feeds, fetches full article text, groups into clusters |
-| `/backend`  | Node.js (Express) | REST API over the database; also starts the scraper on demand        |
-| `/frontend` | Next.js / React   | The timeline UI                                                     |
+## Prerequisites
 
-Both the Python scraper and the Node API talk to the **same SQLite file**
-(`news_pulse.db` in the project root). Python writes it, Node reads it.
+- Node.js **22.5 or newer**
+- npm
+- Python **3.9 or newer**
+- Internet access for RSS feeds and article pages
 
-### News sources used
+Node 22.5 or newer is required because the backend uses Node's built-in `node:sqlite` module.
 
-- **BBC News** — `http://feeds.bbci.co.uk/news/rss.xml`
-- **NPR** — `https://feeds.npr.org/1001/rss.xml`
-- **Al Jazeera** — `https://www.aljazeera.com/xml/rss/all.xml`
+## Installation
 
-They are listed in `scraper/config.py` — adding a fourth source is one line.
+Clone the repository and enter its directory:
 
----
+```bash
+git clone <repository-url>
+cd "assignment 2"
+```
 
-## Setup
-
-### 1. Scraper (Python)
+### Install scraper dependencies
 
 ```bash
 cd scraper
-pip install -r requirements.txt
-python main.py
+python3 -m pip install -r requirements.txt
+cd ..
 ```
 
-The first run creates `news_pulse.db`, downloads the latest articles, and groups them.
-Running it again only processes articles it hasn't seen before.
-
-### 2. Backend (Node.js)
-
-Requires **Node 22.5 or newer** (it uses Node's built-in `node:sqlite` module, so there
-is no native package to compile).
+### Install backend dependencies
 
 ```bash
 cd backend
-cp .env.example .env     # then edit .env if needed
+cp .env.example .env
 npm install
-npm start                # http://localhost:4000
+cd ..
 ```
 
-> **Note on `PYTHON_BIN`:** the `POST /ingest/trigger` endpoint runs the Python scraper as
-> a subprocess. If your machine has more than one Python installed, set `PYTHON_BIN` in
-> `.env` to the full path of the one where you ran `pip install`. You can find it with
-> `python -c "import sys; print(sys.executable)"`.
-
-### 3. Frontend (Next.js)
+### Install frontend dependencies
 
 ```bash
 cd frontend
 cp .env.local.example .env.local
 npm install
-npm run dev              # http://localhost:3000
+cd ..
 ```
 
----
+## Configuration
 
-## How the topic grouping works
+### Backend environment variables
 
-**Approach used: Option A — keyword / word-overlap grouping.**
+Copy `backend/.env.example` to `backend/.env`:
 
-For every article we take the headline + summary and:
+| Variable         | Default            | Description                                                 |
+| ---------------- | ------------------ | ----------------------------------------------------------- |
+| `PORT`           | `4000`             | Port used by the Express API                                |
+| `DB_PATH`        | `../news_pulse.db` | SQLite path relative to the backend directory               |
+| `PYTHON_BIN`     | `python`           | Python executable used by background ingest                 |
+| `SCRAPER_DIR`    | `../scraper`       | Scraper working directory relative to the backend directory |
+| `SCRAPER_SCRIPT` | `main.py`          | Script started for ingest                                   |
+| `CORS_ORIGIN`    | `*`                | Allowed frontend origin                                     |
 
-1. Lowercase it and keep only letters.
-2. Remove **stop words** (`the`, `is`, `and`, …) and words shorter than 3 letters.
-3. What's left is that article's set of *significant words*.
+If Python packages were installed into a specific interpreter, set `PYTHON_BIN` to its full path:
 
-Then we compare every pair of articles. If two articles share **3 or more** significant
-words, we decide they are about the same topic and merge them into the same cluster
-(using a small union-find structure, so that A–B and B–C end up in one group with A–C).
-
-Each cluster is labelled with the words its articles have **in common** — that shared
-vocabulary *is* the topic, e.g. `Merz / State / Chancellor`. A cluster holding only one
-article is labelled with that article's headline instead.
-
-### Why this approach
-
-The assessment allows either keyword overlap or TF-IDF. I chose keyword overlap because:
-
-- It is **explainable** — I can point at exactly which shared words caused two articles to
-  be grouped, which makes wrong groupings easy to debug.
-- It needs **no training data or model**, so it works from the very first run when the
-  database holds only a handful of articles (TF-IDF gets weaker on tiny corpora).
-- A simple approach that works reliably was explicitly preferred over a complex one.
-
-### How I picked the threshold
-
-I started at 4 shared words, which split obviously-related stories apart (two articles
-about the same event often phrase headlines completely differently). At 2 shared words,
-unrelated stories merged because any two political articles share words like "president"
-and "government". **3 shared words** was the point where the clusters I inspected by hand
-were coherent — the German-chancellor cluster below is a typical result:
-
-```
-Merz / State / Chancellor   (3 articles)
-  NPR      - German chancellor stands his ground after his party loses in state elections
-  BBC News - Katya Adler: Merz's political crisis threatens Germany's obsession with stability
-  BBC News - Merz vows to keep coalition together for Germany's 'democratic future'
+```bash
+python3 -c "import sys; print(sys.executable)"
 ```
 
-The threshold lives in `scraper/config.py` (`MIN_SHARED_WORDS`) so it is easy to tune.
+### Frontend environment variables
 
-### A limitation I noticed
+Copy `frontend/.env.local.example` to `frontend/.env.local`:
 
-**Shared words are not the same as a shared story.** Two different articles about two
-different bombings can share "attack", "killed" and "forces" and get merged, while two
-articles about the *same* event can stay apart if one says "chancellor" and the other says
-"Merz". The algorithm matches vocabulary, not meaning.
+```env
+VITE_API_URL=http://localhost:4000
+```
 
-The most visible symptom is that **most clusters end up with a single article** — each
-outlet covers plenty of stories the others ignore. The frontend hides single-article
-clusters by default (there's a checkbox to show them) so the timeline stays readable.
+`VITE_API_URL` must point to the backend API. Vite exposes only variables prefixed with `VITE_` to browser code.
 
-A second, more interesting limitation showed up during development: **feed boilerplate
-poisons the grouping.** NPR appends `(Image credit: <photographer>)` to every summary, so
-at one point every NPR story shared the words "image" and "credit" and 10 completely
-unrelated articles were merged into one cluster. `remove_boilerplate()` in
-`scraper/fetch_feeds.py` strips those phrases before grouping.
+### Scraper configuration
 
----
+Edit `scraper/config.py` to change:
 
-## API endpoints
+- RSS feed names and URLs
+- SQLite path
+- Article request timeout
+- Minimum shared words for clustering
+- Stop words ignored by the clustering algorithm
 
-Base URL locally: `http://localhost:4000`
+## Running Locally
 
-| Method | Endpoint                | Purpose                                                           |
-| ------ | ----------------------- | ----------------------------------------------------------------- |
-| GET    | `/clusters`             | All clusters: label, article count, time range, sources            |
-| GET    | `/clusters/:id`         | One cluster with all its articles, oldest first                    |
-| GET    | `/timeline?days=7`      | Clusters shaped for charting: `start`, `end`, `articleCount`, `intensity` |
-| POST   | `/ingest/trigger`       | Starts the Python scraper in the background, returns a `jobId`     |
-| GET    | `/ingest/status/:jobId` | Poll a job: `running` / `completed` / `failed`                     |
-| GET    | `/sources`              | Distinct source names (powers the frontend's source filter)        |
-| GET    | `/health`               | Simple liveness check                                              |
+Start the backend in one terminal:
 
-**Why `/timeline` is a separate shape from `/clusters`:** a chart needs a start time, an
-end time, a size value per item and the overall axis range. `/timeline` does that maths
-server-side and returns `rangeStart` / `rangeEnd` plus an `intensity` value (0–1, relative
-to the biggest cluster) so the frontend can size bars without recalculating anything.
+```bash
+cd backend
+npm start
+```
 
-**Why `/timeline` takes a `days` parameter:** feeds sometimes include an evergreen
-explainer published a year ago. A single one of those stretched the time axis so far that
-an entire day of real news was squashed into a sliver at the right edge. `days` (default
-7, validated 1–365) bounds the window, and the axis always spans that whole window
-(`rangeStart` = now − days, `rangeEnd` = now) rather than just the articles' own
-timestamps — so switching between 24h / 7d / 30d in the UI visibly rescales the chart.
+The API will be available at `http://localhost:4000`.
 
----
+Start the frontend in another terminal:
 
-## Frontend features
+```bash
+cd frontend
+npm run dev
+```
 
-- **Timeline visualization** — a hand-built Gantt-style chart (no charting library). Each
-  cluster is a row; its bar spans from its earliest to its latest article, so the bar's
-  position and length show *when* and *for how long* a topic was active. Bars get taller
-  and bolder as the cluster grows (`intensity`).
-- **Cluster detail view** — clicking a bar or a label opens a panel listing every article
-  in that cluster with its source, published time, and a link to the original.
-- **Source filter** — checkboxes toggle outlets. A cluster stays visible while at least one
-  of its articles comes from a ticked source, and the detail panel hides articles from
-  unticked sources too.
-- **Refresh data** — calls `POST /ingest/trigger`, polls `GET /ingest/status/:jobId` every
-  2.5 seconds, and reloads the timeline when the job completes.
-- **Auto-refresh** *(stretch goal)* — optional checkbox; re-fetches `/timeline` every 60s.
-- **Visual cluster sizing** *(stretch goal)* — bigger cluster = taller, more opaque bar.
+The UI will be available at `http://localhost:5173`.
 
----
+Run the scraper once to initialize the database and load articles:
 
-## Handling messy feeds
+```bash
+cd scraper
+python3 main.py
+```
 
-The assessment called out that this should be more involved than one clean parse. What the
-scraper deals with:
+The first run creates `news_pulse.db`. Later runs skip URLs already stored and recompute all clusters.
 
-| Problem                                              | How it's handled                                                                |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Different field names (`<description>` vs `<content:encoded>`) | `normalize_summary()` checks both and keeps whichever has real text     |
-| Missing `pubDate`, inconsistent date formats          | `normalize_date()` tries `published`, then `updated`, then `dateutil`, else `None` |
-| HTML markup inside summaries                          | `strip_html()` removes tags before the text is used                             |
-| Per-feed boilerplate (`(Image credit: …)`)            | `remove_boilerplate()` strips it, plus a stop-word safety net                   |
-| Article pages that fail to load or parse              | `fetch_full_article_text()` catches the error, logs it, returns `""` and moves on |
-| Duplicate articles across repeated runs               | `url` column is `UNIQUE`; `article_exists()` skips articles already stored        |
-| Re-runnability                                        | Each run only downloads article pages for URLs it hasn't seen before             |
+### Recommended startup order
 
----
+1. Install Python dependencies.
+2. Run `python3 main.py` from `scraper` once.
+3. Start the backend.
+4. Start the frontend.
 
-## Assumptions made
+The backend can also trigger the scraper through `POST /ingest/trigger`, but the Python dependencies must already be installed.
 
-- **SQLite** is used rather than hosted Postgres/Mongo, because both the Python scraper and
-  the Node API run on the same machine and SQLite needs no separate server. For deployment
-  this means the scraper and API must share a filesystem (see below).
-- **Clusters are recomputed from scratch** on every run rather than incrementally updated.
-  With a few hundred articles the pairwise comparison is fast, and it avoids a whole class
-  of "should this new article join an existing cluster or split it" edge cases.
-- **Full article body text is stored but not used for grouping.** Grouping on headline +
-  summary gave cleaner clusters; body text adds a lot of common vocabulary (navigation
-  text, related-story blurbs) that pushes unrelated articles together.
-- **The timeline shows a recent window (7 days by default)** rather than every article ever
-  collected, for the axis-scaling reason described above.
+## NPM Scripts
 
----
+### Backend
+
+```bash
+npm start       # Start the API
+npm run dev     # Start the API with Node watch mode
+```
+
+### Frontend
+
+```bash
+npm run dev     # Start Vite development server
+npm run build   # Create a production build in dist/
+npm run preview # Preview the production build locally
+```
+
+## Topic Grouping
+
+The scraper uses explainable keyword overlap rather than a machine-learning model.
+
+For each article, the scraper:
+
+1. Combines the title and summary.
+2. Converts text to lowercase and keeps meaningful words.
+3. Removes stop words, short words, and common feed boilerplate.
+4. Compares each pair of articles.
+5. Joins articles sharing at least three meaningful words.
+6. Uses union-find grouping so related chains become one cluster.
+
+The threshold is configured by `MIN_SHARED_WORDS` in `scraper/config.py` and defaults to `3`.
+
+Cluster labels are made from shared words. A cluster with one article uses that article's title as its label.
+
+This approach is fast and easy to inspect, but it compares vocabulary rather than meaning. Related stories with different wording may remain separate, while unrelated stories with similar wording can occasionally merge.
+
+## Data Processing
+
+The scraper handles common feed problems:
+
+- Different summary fields such as `description` and `content:encoded`
+- Missing or inconsistent publication dates
+- HTML inside summaries
+- Feed-specific boilerplate such as image credits
+- Article pages that time out or cannot be parsed
+- Duplicate URLs across repeated runs
+- Re-running the pipeline without creating duplicate records
+
+Full article text is stored when available, but clustering uses the title and summary because article bodies often contain unrelated navigation and recommendation text.
+
+## API Reference
+
+Base URL:
+
+```text
+http://localhost:4000
+```
+
+### `GET /health`
+
+Returns an API liveness response.
+
+```json
+{
+  "status": "ok",
+  "time": "2026-09-22T17:00:00.000Z"
+}
+```
+
+### `GET /sources`
+
+Returns distinct article sources.
+
+```json
+{
+  "sources": ["Al Jazeera", "BBC News", "NPR"]
+}
+```
+
+### `GET /clusters`
+
+Returns all clusters with labels, article counts, time ranges, and source names.
+
+### `GET /clusters/:id`
+
+Returns one cluster and its articles ordered from oldest to newest.
+
+### `GET /timeline?days=7`
+
+Returns chart-ready cluster data. `days` must be between `1` and `365`; the default is `7`.
+
+The response includes:
+
+- `rangeStart` and `rangeEnd`: the complete requested timeline range
+- `count`: number of plottable clusters
+- `items`: cluster bars with `start`, `end`, `articleCount`, `intensity`, and `sources`
+
+Example request:
+
+```bash
+curl "http://localhost:4000/timeline?days=7"
+```
+
+### `POST /ingest/trigger`
+
+Starts the scraper in the background and returns a job record with a `jobId`.
+
+```bash
+curl -X POST http://localhost:4000/ingest/trigger
+```
+
+Only one ingest job can run at a time. A second request returns HTTP `409` while the first job is running.
+
+### `GET /ingest/status/:jobId`
+
+Returns the current state of an ingest job:
+
+- `running`
+- `completed`
+- `failed`
+
+## Frontend Usage
+
+- Choose a time window from the selector.
+- Toggle sources to filter visible clusters.
+- Enable **Show single-article topics** to include clusters with one article.
+- Click a topic label or timeline bar to open its article details.
+- Select **Auto-refresh** to reload timeline data every 60 seconds.
+- Select **Refresh data** to run the scraper and reload the interface when it completes.
 
 ## Deployment
 
-| Component     | Platform                                                          |
-| ------------- | ----------------------------------------------------------------- |
-| Frontend      | Vercel — set `NEXT_PUBLIC_API_URL` to the deployed API URL          |
-| Backend API   | Render / Railway — set `PORT`, `DB_PATH`, `PYTHON_BIN`, `CORS_ORIGIN` |
-| Python pipeline | Runs on the API host, started on demand via `POST /ingest/trigger` (can also be scheduled with a cron job) |
-| Database      | SQLite file on the API host's disk                                 |
+### Backend hosting
 
-Because the scraper is launched as a subprocess of the API, both need to live in the same
-container — so the backend image needs Python and the scraper's `requirements.txt`
-installed alongside Node. That is what the root `Dockerfile` builds, and `render.yaml`
-deploys it. Environment variables are set on the hosting platform; `.env` files are
-gitignored and never committed.
+Deploy the `backend` and `scraper` directories together on a host that supports Node.js and Python. The API starts the scraper as a subprocess, so both services must run on the same machine and share the SQLite file.
 
-**Deploy steps:**
+After deployment:
 
-1. Push this repo to GitHub.
-2. **Backend** — on Render: *New → Web Service → connect this repo*. It picks up
-   `render.yaml` / `Dockerfile` automatically. Once live, set `CORS_ORIGIN` to your Vercel
-   URL.
-3. **Frontend** — on Vercel: *New Project → import this repo → root directory `frontend`*,
-   and set the environment variable `NEXT_PUBLIC_API_URL` to the Render URL.
-4. **Scheduled scraping** *(optional)* — `.github/workflows/scheduled-scrape.yml` calls
-   `POST /ingest/trigger` every 6 hours. Add a repository secret `API_URL` pointing at the
-   deployed backend to enable it.
+1. Confirm the backend `/health` endpoint.
+2. Set `CORS_ORIGIN` to the deployed frontend URL.
+3. Set `DB_PATH`, `PYTHON_BIN`, and scraper paths if the hosting layout changes.
+4. Trigger an initial ingest with `POST /ingest/trigger`.
 
-> If the host's disk is ephemeral (e.g. Render's free tier), the database resets on
-> redeploy. The fix, with more time, would be to move the storage layer to hosted Postgres
-> — only `scraper/db.py` and `backend/db.js` would need to change, since all SQL lives
-> in those two files.
+### Vite frontend hosting
 
----
+Build the frontend:
 
-## What I'd improve with more time
+```bash
+cd frontend
+npm run build
+```
 
-1. **Better grouping than word overlap** — TF-IDF weighting would stop common words
-   carrying as much weight as distinctive ones (`Merz` should count for more than `state`).
-2. **Incremental clustering** so new articles join existing clusters instead of the whole
-   set being regrouped each run.
-3. **Postgres instead of SQLite**, so the scraper and the API could scale independently.
-4. **Tests** around the messy parts — date normalization and boilerplate stripping are
-   exactly the kind of logic that deserves fixtures of real, ugly feed data.
+Deploy the generated `frontend/dist` directory to a static host such as Vercel, Netlify, or Cloudflare Pages. Set:
+
+```env
+VITE_API_URL=https://your-api.example.com
+```
+
+The frontend must be rebuilt after changing `VITE_API_URL` because Vite embeds environment values during the build.
+
+### Database persistence
+
+SQLite is stored on the API host's filesystem. Ephemeral hosting disks can reset the database during redeploys or restarts. For durable production storage, replace the SQLite access layer with a hosted database or attach persistent storage to the API service.
+
+## Troubleshooting
+
+### `no such table: clusters` or `no such table: articles`
+
+Run the scraper once before using the API:
+
+```bash
+cd scraper
+python3 main.py
+```
+
+### `ModuleNotFoundError: No module named 'feedparser'`
+
+Install the scraper dependencies in the same Python environment used by the backend:
+
+```bash
+cd scraper
+python3 -m pip install -r requirements.txt
+```
+
+Then set `PYTHON_BIN` in `backend/.env` if necessary.
+
+### Frontend cannot reach the API
+
+Check that:
+
+1. The backend is running on port 4000.
+2. `frontend/.env.local` contains the correct `VITE_API_URL`.
+3. The frontend was restarted after changing the environment file.
+4. `CORS_ORIGIN` allows the frontend origin.
+
+### Ingest job fails to start Python
+
+Check `PYTHON_BIN`, `SCRAPER_DIR`, and `SCRAPER_SCRIPT` in `backend/.env`. Run the scraper directly first to expose missing packages or network errors.
+
+### Frontend build or dev server fails
+
+Reinstall frontend dependencies and retry:
+
+```bash
+cd frontend
+rm -rf node_modules
+npm install
+npm run build
+```
+
+### Feed or article requests time out
+
+The scraper logs failed article requests and continues processing. Check network access and the feed URLs in `scraper/config.py`.
+
+## Development Notes
+
+- The API keeps ingest job state in memory; restarting the backend removes old job records.
+- Clusters are recomputed from all stored articles on every scraper run.
+- The API and scraper must agree on the database path.
+- RSS feeds and article pages can change their formats or availability without notice.
+- The application currently has no automated test suite; manual checks should include the scraper, `/health`, `/timeline`, frontend build, and a cluster detail click.
+
+## Future Improvements
+
+- Add unit tests for date normalization, summary cleanup, and clustering.
+- Use TF-IDF or embeddings for more semantic grouping.
+- Add persistent ingest job records.
+- Move production storage from SQLite to Postgres.
+- Add pagination for large cluster and article collections.
+- Add structured logging and metrics.
+
+## License
+
+No license has been specified for this project. Add a `LICENSE` file before distributing it publicly.

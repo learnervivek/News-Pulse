@@ -19,3 +19,6 @@ out/
 # Editor / OS noise
 .DS_Store
 .vscode/
+
+# Vite build output
+frontend/dist/

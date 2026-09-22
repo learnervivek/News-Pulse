@@ -4,7 +4,7 @@
 // Every component calls these functions instead of writing fetch()
 // calls of its own, so the API address only appears once.
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 async function request(path, options) {
   const response = await fetch(`${API_URL}${path}`, options);

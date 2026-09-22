@@ -56,7 +56,7 @@ export default function HomePage() {
       // means all of them; if a scrape later adds a brand new outlet it
       // shows up ticked too. Sources the user unticked stay unticked.
       const newSources = sourcesData.sources.filter(
-        (source) => !sources.includes(source),
+        (source) => !sources.includes(source)
       );
       if (newSources.length > 0) {
         setSelectedSources((current) => [...current, ...newSources]);
@@ -143,7 +143,7 @@ export default function HomePage() {
     setSelectedSources((current) =>
       current.includes(source)
         ? current.filter((item) => item !== source)
-        : [...current, source],
+        : [...current, source]
     );
   }
 
@@ -152,16 +152,20 @@ export default function HomePage() {
   const visibleItems = (timeline?.items || []).filter(
     (cluster) =>
       cluster.sources.some((source) => selectedSources.includes(source)) &&
-      (showSingleArticleTopics || cluster.articleCount > 1),
+      (showSingleArticleTopics || cluster.articleCount > 1)
   );
 
   return (
     <main className="page">
       <header className="header">
-        <div>
+        <div className="brand-block">
+          <div className="brand-line">
+            <span className="brand-mark" aria-hidden="true">NP</span>
+            <span className="eyebrow">Live news monitor</span>
+          </div>
           <h1>News Pulse</h1>
           <p className="subtitle">
-            Live news stories grouped by topic and plotted over time
+            Stories grouped by topic and plotted over time
           </p>
         </div>
 
@@ -194,12 +198,28 @@ export default function HomePage() {
       </header>
 
       <div className="status-bar">
+        <span className="status-indicator" aria-hidden="true" />
         <span>
           {status}
           {timeline ? ` - showing ${visibleItems.length}` : ""}
         </span>
         {error && <span className="error">{error}</span>}
       </div>
+
+      <section className="overview" aria-label="Timeline overview">
+        <div className="overview-item">
+          <span className="overview-label">Topics</span>
+          <strong>{timeline?.count ?? "-"}</strong>
+        </div>
+        <div className="overview-item">
+          <span className="overview-label">Showing</span>
+          <strong>{timeline ? visibleItems.length : "-"}</strong>
+        </div>
+        <div className="overview-item">
+          <span className="overview-label">Sources</span>
+          <strong>{sources.length || "-"}</strong>
+        </div>
+      </section>
 
       <div className="filter-row">
         <SourceFilter
@@ -222,6 +242,13 @@ export default function HomePage() {
 
       <div className="layout">
         <section className="timeline-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="section-kicker">Activity</p>
+              <h2>Topic timeline</h2>
+            </div>
+            <span className="panel-note">Select a topic for details</span>
+          </div>
           {timeline && timeline.rangeStart ? (
             <Timeline
               items={visibleItems}
@@ -231,9 +258,7 @@ export default function HomePage() {
               onSelectCluster={handleSelectCluster}
             />
           ) : (
-            <p className="empty">
-              No data yet - click &ldquo;Refresh data&rdquo;.
-            </p>
+            <p className="empty">No data yet - click &ldquo;Refresh data&rdquo;.</p>
           )}
         </section>
 
@@ -247,6 +272,12 @@ export default function HomePage() {
           }}
         />
       </div>
+
+      <footer className="footer">
+        <span>News Pulse</span>
+        <span>BBC News · NPR · Al Jazeera</span>
+        <span>Updated from live RSS feeds</span>
+      </footer>
     </main>
   );
 }
