@@ -5,15 +5,13 @@
 // All SQL lives in this one file so the route files stay easy to read.
 
 const path = require("path");
-// Node has SQLite built in (Node 22.5+), so there is no native package
-// to compile or install - we just open the file the scraper created.
-const { DatabaseSync } = require("node:sqlite");
+const Database = require("better-sqlite3");
 
 // Where the database file lives. Configured through an environment
 // variable so nothing is hard-coded (required by the assessment).
 const dbPath = path.resolve(__dirname, process.env.DB_PATH || "../news_pulse.db");
 
-const db = new DatabaseSync(dbPath);
+const db = new Database(dbPath);
 
 /**
  * Every cluster with its article count and the time range it covers
