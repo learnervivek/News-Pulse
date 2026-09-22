@@ -100,7 +100,16 @@ export default function HomePage() {
 
     try {
       // 1. Ask the backend to start the Python scraper.
-      const job = await triggerIngest();
+      let job;
+      try {
+        job = await triggerIngest();
+      } catch (refreshError) {
+        if (refreshError.status !== 409 || !refreshError.jobId) {
+          throw refreshError;
+        }
+
+        job = { jobId: refreshError.jobId, status: "running" };
+      }
       setStatus("Scraping news sources...");
 
       // 2. Keep checking that job until it finishes.

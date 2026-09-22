@@ -11,7 +11,10 @@ async function request(path, options) {
 
   if (!response.ok) {
     const details = await response.json().catch(() => ({}));
-    throw new Error(details.error || `Request failed (${response.status})`);
+    const error = new Error(details.error || `Request failed (${response.status})`);
+    error.status = response.status;
+    error.jobId = details.jobId;
+    throw error;
   }
 
   return response.json();
