@@ -5,12 +5,12 @@ services:
     rootDir: backend
     buildCommand: npm install && pip3 install -r ../scraper/requirements.txt
     startCommand: node server.js
-    plan: starter
+    plan: free
     envVars:
       - key: NODE_VERSION
         value: 22.5.0
       - key: DB_PATH
-        value: /var/data/news_pulse.db
+        value: ../news_pulse.db
       - key: PYTHON_BIN
         value: python3
       - key: SCRAPER_DIR
@@ -20,11 +20,6 @@ services:
           type: web
           name: news-pulse-frontend
           envVarKey: RENDER_EXTERNAL_URL
-    disk:
-      name: news-pulse-data
-      mountPath: /var/data
-      sizeGB: 1
-
   - type: web
     name: news-pulse-frontend
     runtime: static
