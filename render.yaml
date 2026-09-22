@@ -17,7 +17,7 @@ services:
         value: ../scraper
       - key: CORS_ORIGIN
         fromService:
-          type: static_site
+          type: static
           name: news-pulse-frontend
           envVarKey: RENDER_EXTERNAL_URL
     disk:
@@ -25,7 +25,7 @@ services:
       mountPath: /var/data
       sizeGB: 1
 
-  - type: static_site
+  - type: static
     name: news-pulse-frontend
     rootDir: frontend
     buildCommand: npm install && npm run build
